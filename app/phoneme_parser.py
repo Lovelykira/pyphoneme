@@ -1,13 +1,12 @@
 import itertools
 
+import re
+import requests
 import numpy as np
 from functools import reduce
-
-
-from copy import deepcopy, copy
-
-import requests
 from bs4 import BeautifulSoup
+from copy import deepcopy, copy
+from scipy import stats
 
 
 class PhonemeParser:
@@ -33,6 +32,10 @@ class PhonemeParser:
         return res.text
 
 
+def normalize_text(text):
+    return re.sub('[\,\.\!\?]', '', text).strip()
+
+
 class TextAnalyzer:
     def __init__(self, text):
         self.text = text.strip()
@@ -44,19 +47,19 @@ class TextAnalyzer:
         self._analyze_phonemes()
 
     def _get_words_list(self):
-        return self.text.split(' ')
+        return normalize_text(self.text).split(' ')
 
     def _get_words_list_phonemes(self):
-        phonemes = PhonemeParser().text_to_phoneme(self.text)
-        return phonemes.split(' ')
+        return PhonemeParser().text_to_phoneme(self.text).split(' ')
 
     def _analyze_words(self):
         words = self._get_words_list()
         words_transcription = self._get_words_list_phonemes()
+        self._normalize_words_transcription(words, words_transcription)
 
         for index, transcription in enumerate(words_transcription):
-            if transcription == '':
-                continue
+            # if transcription == '':
+            #     continue
 
             current_word = words[index]
             if current_word in self.words_info:
@@ -79,6 +82,29 @@ class TextAnalyzer:
             percentage[phoneme] = count / self.all_phonemes
         return percentage
 
+    def get_percentage(self, chunk):
+        all_phonemes = 0
+        phonemes = {}
+
+        for word in chunk.split(' '):
+            word = word.strip()
+            phonemes_count = self.words_info[word]['word'].get_phonemes_count()
+            for phoneme, count in phonemes_count.items():
+                phonemes[phoneme] = phonemes.get(phoneme, 0) + count
+                all_phonemes += count
+
+        percentage = {}
+        for phoneme, count in phonemes.items():
+            percentage[phoneme] = count / all_phonemes
+        return percentage
+
+    @classmethod
+    def _normalize_words_transcription(cls, words, words_transcription):
+        for i, word in enumerate(words):
+            if '-' in word:
+                words_transcription[i] = words_transcription[i] + words_transcription[i + 1]
+                words_transcription.pop(i + 1)
+
 
 class TextSynthesis:
     def __init__(self, text):
@@ -86,24 +112,71 @@ class TextSynthesis:
         self.text_analyzer = TextAnalyzer(text)
         self.initial_distribution = self.text_analyzer.get_initial_percentage()
 
-    def synthesize_using_words(self):
-        words = copy(self.text_analyzer.words_info)
-        all_phonemes = self.text_analyzer.all_phonemes
+    def synthesize_by_deleting_chunks(self, delimeter='.'):
+        result_chunks = ''
+        text = self.text
+        while not self.text_is_relevant(result_chunks):
+            chunk = self.get_best_chunk(text, delimeter)
+            print(chunk)
+            result_chunks += chunk
+            text.replace(chunk, '')
 
-        result_words = []
-        while not self.text_is_relevant(result_words):
-            relevant_word = self.get_most_relevant_word(words)
-            words.pop(relevant_word)
-            result_words.append(relevant_word)
-        return result_words
+    def get_best_chunk(self, text, delimeter='.'):
+        chunks = text.split(delimeter)
+        chunks_ks_test = {}
+        highest_p_value = -1
+        highest_p_value_chunk_index = None
+        smallest_statistic = 2
+        smallest_statistic_chunk_index = None
+        for i, chunk in enumerate(chunks):
+            chunk = normalize_text(chunk)
+            if not chunk:
+                continue
+            chunk_distribution = self.text_analyzer.get_percentage(chunk)
+            ks_test = stats.ks_2samp(list(chunk_distribution.values()), list(self.initial_distribution.values()))
+            chunks_ks_test[i] = ks_test
 
-    def get_most_relevant_word(self, words):
-        for word, word_info in words.items():
-            word_info['word'].get_percentage()
+            if ks_test.statistic < smallest_statistic:
+                smallest_statistic = ks_test.statistic
+                smallest_statistic_chunk_index = i
+            if ks_test.pvalue > highest_p_value:
+                highest_p_value = ks_test.pvalue
+                highest_p_value_chunk_index = i
 
 
-    def text_is_relevant(self, words):
-        return words != []
+        highest_p_value_chunk = chunks_ks_test[highest_p_value_chunk_index]
+        smallest_statistic_chunk = chunks_ks_test[smallest_statistic_chunk_index]
+
+        if highest_p_value_chunk == smallest_statistic_chunk:
+            return chunks[highest_p_value_chunk_index]
+
+        #if p_value is closer to 1 than statistic to 0
+        if 1 - highest_p_value_chunk.p_value < smallest_statistic_chunk.statistic:
+            return chunks[highest_p_value_chunk_index]
+        return chunks[smallest_statistic_chunk_index]
+
+    def text_is_relevant(self, text):
+        return bool(text)
+
+
+    # def synthesize_using_words(self):
+    #     words = copy(self.text_analyzer.words_info)
+    #     all_phonemes = self.text_analyzer.all_phonemes
+    #
+    #     result_words = []
+    #     while not self.text_is_relevant(result_words):
+    #         relevant_word = self.get_most_relevant_word(words)
+    #         words.pop(relevant_word)
+    #         result_words.append(relevant_word)
+    #     return result_words
+    #
+    # def get_most_relevant_word(self, words):
+    #     for word, word_info in words.items():
+    #         word_info['word'].get_percentage()
+    #
+    #
+    # def text_is_relevant(self, words):
+    #     return words != []
 
 
 class Word:
