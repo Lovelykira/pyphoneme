@@ -36,6 +36,10 @@ def normalize_text(text):
     return re.sub('[\,\.\!\?]', '', text).strip()
 
 
+def remove_empty_values(words):
+    return list(filter(lambda a: a != '', words))
+
+
 class TextAnalyzer:
     def __init__(self, text):
         self.text = text.strip()
@@ -44,23 +48,25 @@ class TextAnalyzer:
         self.all_phonemes = 0
 
         self._analyze_words()
+        # print(self.words_info.keys())
         self._analyze_phonemes()
 
     def _get_words_list(self):
-        return normalize_text(self.text).split(' ')
+        text = normalize_text(self.text).split(' ')
+        return remove_empty_values(text)
 
     def _get_words_list_phonemes(self):
-        return PhonemeParser().text_to_phoneme(self.text).split(' ')
+        text = PhonemeParser().text_to_phoneme(self.text).split(' ')
+        return remove_empty_values(text)
 
     def _analyze_words(self):
         words = self._get_words_list()
         words_transcription = self._get_words_list_phonemes()
+        # print(words, len(words))
         self._normalize_words_transcription(words, words_transcription)
+        # print(words_transcription, len(words_transcription))
 
         for index, transcription in enumerate(words_transcription):
-            # if transcription == '':
-            #     continue
-
             current_word = words[index]
             if current_word in self.words_info:
                 self.words_info[current_word]['count'] += 1
@@ -86,8 +92,7 @@ class TextAnalyzer:
         chunk = normalize_text(chunk)
         all_phonemes = 0
         phonemes = {}
-
-        for word in chunk.split(' '):
+        for word in remove_empty_values(chunk.split(' ')):
             word = word.strip()
             phonemes_count = self.words_info[word]['word'].get_phonemes_count()
             for phoneme, count in phonemes_count.items():
@@ -106,9 +111,11 @@ class TextAnalyzer:
                 words_transcription[i] = words_transcription[i] + words_transcription[i + 1]
                 words_transcription.pop(i + 1)
 
-
 class TextSynthesis:
     def __init__(self, text):
+        text = text.replace('[?!]', '.')
+        text = re.sub('[^a-zA-Z-_ *.]', '', text).lower()
+        print(text)
         self.text = text
         self.text_analyzer = TextAnalyzer(text)
         self.initial_distribution = self.text_analyzer.get_initial_percentage()
@@ -117,10 +124,10 @@ class TextSynthesis:
         result_chunks = ''
         text = self.text
         while not self.text_is_relevant(result_chunks):
-            chunk = self.get_best_chunk(text, delimeter)
-            print(chunk)
+            chunk = self.get_best_chunk(text, delimeter) + '.'
             result_chunks += chunk
-            text.replace(chunk, '')
+            text = text.replace(chunk, '')
+        return result_chunks
 
     def get_best_chunk(self, text, delimeter='.'):
         chunks = text.split(delimeter)
@@ -145,7 +152,6 @@ class TextSynthesis:
                 highest_p_value = ks_test.pvalue
                 highest_p_value_chunk_index = i
 
-
         highest_p_value_chunk = chunks_ks_test[highest_p_value_chunk_index]
         smallest_statistic_chunk = chunks_ks_test[smallest_statistic_chunk_index]
 
@@ -158,7 +164,15 @@ class TextSynthesis:
         return chunks[smallest_statistic_chunk_index]
 
     def text_is_relevant(self, text):
-        return bool(text)
+        if not text:
+            return False
+        synthesis_text_distribution = self.text_analyzer.get_percentage(text)
+        # print('initial_distribution', self.initial_distribution)
+        # print('synthesis_text_distribution', synthesis_text_distribution)
+        ks_test = stats.ks_2samp(list(synthesis_text_distribution.values()), list(self.initial_distribution.values()))
+        # print('==========')
+        # print('ks_test', ks_test)
+        return ks_test.pvalue > 0.7
 
 
     # def synthesize_using_words(self):
