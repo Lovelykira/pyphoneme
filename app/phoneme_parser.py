@@ -32,8 +32,8 @@ class PhonemeParser:
         return res.text
 
 
-def normalize_text(text):
-    return re.sub('[\,\.\!\?]', '', text).strip()
+def remove_dots(text):
+    return text.replace('.', '').strip()
 
 
 def remove_empty_values(words):
@@ -52,7 +52,7 @@ class TextAnalyzer:
         self._analyze_phonemes()
 
     def _get_words_list(self):
-        text = normalize_text(self.text).split(' ')
+        text = remove_dots(self.text).split(' ')
         return remove_empty_values(text)
 
     def _get_words_list_phonemes(self):
@@ -89,7 +89,8 @@ class TextAnalyzer:
         return percentage
 
     def get_percentage(self, chunk):
-        chunk = normalize_text(chunk)
+        chunk = remove_dots(chunk)
+        # print('chunk', chunk)
         all_phonemes = 0
         phonemes = {}
         for word in remove_empty_values(chunk.split(' ')):
@@ -111,13 +112,18 @@ class TextAnalyzer:
                 words_transcription[i] = words_transcription[i] + words_transcription[i + 1]
                 words_transcription.pop(i + 1)
 
+
 class TextSynthesis:
-    def __init__(self, text):
-        text = text.replace('[?!]', '.')
-        text = re.sub('[^a-zA-Z-_ *.]', '', text).lower()
-        print(text)
-        self.text = text
-        self.text_analyzer = TextAnalyzer(text)
+    PVALUE = 'pvalue'
+    STATISTIC = 'statistic'
+    AVAILABLE_MODES = [PVALUE, STATISTIC]
+    DEFAULT_MODE = PVALUE
+
+    def __init__(self, text, mode=None, p_value_level=0.7):
+        self.text = self._normalize_text(text)
+        self.p_value_level = p_value_level
+        self.mode = mode if mode in self.AVAILABLE_MODES else self.DEFAULT_MODE
+        self.text_analyzer = TextAnalyzer(self.text)
         self.initial_distribution = self.text_analyzer.get_initial_percentage()
 
     def synthesize_by_deleting_chunks(self, delimeter='.'):
@@ -125,19 +131,22 @@ class TextSynthesis:
         text = self.text
         while not self.text_is_relevant(result_chunks):
             chunk = self.get_best_chunk(text, delimeter) + '.'
-            result_chunks += chunk
+            # print('result', chunk)
+            result_chunks += ' ' + chunk
+            # print('result_chunks', result_chunks)
             text = text.replace(chunk, '')
         return result_chunks
 
     def get_best_chunk(self, text, delimeter='.'):
         chunks = text.split(delimeter)
+        # print('get_best_chunk', text, chunks)
         chunks_ks_test = {}
         highest_p_value = -1
         highest_p_value_chunk_index = None
         smallest_statistic = 2
         smallest_statistic_chunk_index = None
         for i, chunk in enumerate(chunks):
-            chunk = normalize_text(chunk)
+            chunk = remove_dots(chunk)
             if not chunk:
                 continue
             chunk_distribution = self.text_analyzer.get_percentage(chunk)
@@ -152,16 +161,22 @@ class TextSynthesis:
                 highest_p_value = ks_test.pvalue
                 highest_p_value_chunk_index = i
 
-        highest_p_value_chunk = chunks_ks_test[highest_p_value_chunk_index]
-        smallest_statistic_chunk = chunks_ks_test[smallest_statistic_chunk_index]
-
-        if highest_p_value_chunk == smallest_statistic_chunk:
+        if self.mode == self.PVALUE:
             return chunks[highest_p_value_chunk_index]
+        if self.mode == self.STATISTIC:
+            return chunks[smallest_statistic_chunk_index]
 
-        #if p_value is closer to 1 than statistic to 0
-        if 1 - highest_p_value_chunk.p_value < smallest_statistic_chunk.statistic:
-            return chunks[highest_p_value_chunk_index]
-        return chunks[smallest_statistic_chunk_index]
+
+        # highest_p_value_chunk = chunks_ks_test[highest_p_value_chunk_index]
+        # smallest_statistic_chunk = chunks_ks_test[smallest_statistic_chunk_index]
+
+        # if highest_p_value_chunk == smallest_statistic_chunk:
+        #     return chunks[highest_p_value_chunk_index]
+        #
+        # #if p_value is closer to 1 than statistic to 0
+        # if 1 - highest_p_value_chunk.p_value < smallest_statistic_chunk.statistic:
+        #     return chunks[highest_p_value_chunk_index]
+        # return chunks[smallest_statistic_chunk_index]
 
     def text_is_relevant(self, text):
         if not text:
@@ -172,27 +187,14 @@ class TextSynthesis:
         ks_test = stats.ks_2samp(list(synthesis_text_distribution.values()), list(self.initial_distribution.values()))
         # print('==========')
         # print('ks_test', ks_test)
-        return ks_test.pvalue > 0.7
+        return ks_test.pvalue > self.p_value_level
 
-
-    # def synthesize_using_words(self):
-    #     words = copy(self.text_analyzer.words_info)
-    #     all_phonemes = self.text_analyzer.all_phonemes
-    #
-    #     result_words = []
-    #     while not self.text_is_relevant(result_words):
-    #         relevant_word = self.get_most_relevant_word(words)
-    #         words.pop(relevant_word)
-    #         result_words.append(relevant_word)
-    #     return result_words
-    #
-    # def get_most_relevant_word(self, words):
-    #     for word, word_info in words.items():
-    #         word_info['word'].get_percentage()
-    #
-    #
-    # def text_is_relevant(self, words):
-    #     return words != []
+    def _normalize_text(self, text):
+        text = text.replace('[?!]', '.')
+        text = re.sub('[^a-zA-Z-_ *.]', '', text).lower()
+        text += '.'
+        print(text)
+        return text
 
 
 class Word:
