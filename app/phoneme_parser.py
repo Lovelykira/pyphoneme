@@ -83,6 +83,7 @@ class TextAnalyzer:
         return percentage
 
     def get_percentage(self, chunk):
+        chunk = normalize_text(chunk)
         all_phonemes = 0
         phonemes = {}
 
@@ -133,7 +134,8 @@ class TextSynthesis:
             if not chunk:
                 continue
             chunk_distribution = self.text_analyzer.get_percentage(chunk)
-            ks_test = stats.ks_2samp(list(chunk_distribution.values()), list(self.initial_distribution.values()))
+            text_distribution = self.text_analyzer.get_percentage(text)
+            ks_test = stats.ks_2samp(list(chunk_distribution.values()), list(text_distribution.values()))
             chunks_ks_test[i] = ks_test
 
             if ks_test.statistic < smallest_statistic:
