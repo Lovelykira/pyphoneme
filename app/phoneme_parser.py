@@ -1,17 +1,15 @@
 import datetime
-import itertools
 import json
-
 import re
 import requests
-import numpy as np
-from functools import reduce
 from bs4 import BeautifulSoup
-from copy import deepcopy, copy
 from scipy import stats
 
 
 class PhonemeParser:
+    """
+    Class that gets transcription for given text.
+    """
     AVAILABLE_LANGUAGES = ('english', 'danish', 'german')
     DEFAULT_LANGUAGE = 'english'
     ALPHABET = 'IPA'
@@ -22,6 +20,11 @@ class PhonemeParser:
         self.language = language if language in self.AVAILABLE_LANGUAGES else self.DEFAULT_LANGUAGE
 
     def text_to_phoneme(self, text):
+        """
+        Gets text and returns it's transcription. Only first 500 words will get translations.
+        :param text: string
+        :return: string, transcription
+        """
         html_doc = self._get_html(text)
         soup = BeautifulSoup(html_doc, 'html.parser')
         return soup.find_all('td')[1].find('font').text.strip()
@@ -42,66 +45,106 @@ def remove_empty_values(words):
     return list(filter(lambda a: a != '', words))
 
 
-def get_unique_phoneme_words(text):
-    words = text.split(' ')
-    try:
-        saved_phoneme_words_file = open("saved_phoneme_words.json", "r")
-        read = saved_phoneme_words_file.read()
-        phoneme_words = json.loads(read)
-        saved_phoneme_words_file.close()
-    except:
-        phoneme_words = dict()
-    for word in words:
-        print(word)
-        normalized_word = re.sub('[^a-zA-Z]', '', word)
-        if normalized_word and normalized_word not in phoneme_words.keys():
-            try:
-                phoneme = PhonemeParser().text_to_phoneme(normalized_word)
-            except:
-                file = open("saved_phoneme_words.json", "w")
-                file.write(json.dumps(phoneme_words))
-                file.close()
-            phoneme_words[normalized_word] = phoneme
-            print('Getting phoneme for ' + normalized_word + ' - ' + phoneme)
+def get_normalized_word(word):
+    """
+    Gets word and removes all non letter symbols from it
+    :param word: string
+    :return: string, containing only letters
+    """
+    return re.sub('[^a-zA-Z]', '', word)
 
-    file = open("saved_phoneme_words.json", "w")
-    file.write(json.dumps(phoneme_words))
-    file.close()
-    return phoneme_words
+
+class SavedPhonemeWords:
+    """
+    Class that saves/gets words and theirs phonemes to/from file.
+    """
+    FILE_NAME = "s.json"
+
+    @classmethod
+    def get(cls):
+        """
+        opens file and gets from it words and their phonemes
+        :return: dict {'word': 'phoneme'} or an empty dict
+        """
+        try:
+            words_file = open(cls.FILE_NAME, "r")
+            read = words_file.read()
+            saved_phoneme_words = json.loads(read)
+            words_file.close()
+        except:
+            saved_phoneme_words = dict()
+        return saved_phoneme_words
+
+    @classmethod
+    def update(cls, saved_phoneme_words):
+        """
+        opens file and saves dict
+        :param saved_phoneme_words: dict to be saved
+        """
+        file = open(cls.FILE_NAME, "w")
+        file.write(json.dumps(saved_phoneme_words))
+        file.close()
+
+
+class UniquePhonemeWords:
+    """
+    Class that gets unique words and their phonemes from text.
+    """
+    def __init__(self, text):
+        self.text = text
+        self.words = [get_normalized_word(word) for word in text.split(' ') if word]
+
+    def get(self):
+        """
+        Returns unique words and their phonemes from text. The method looks at SavedPhonemeWords first, to minimize
+        number of requests.
+        :return:
+        """
+        saved_phoneme_words = SavedPhonemeWords.get()
+        current_text_phoneme_words = dict()
+        for word in self.words:
+            if word in current_text_phoneme_words.keys():
+                continue
+            if word not in saved_phoneme_words.keys():
+                try:
+                    phoneme = PhonemeParser().text_to_phoneme(word)
+                except:
+                    SavedPhonemeWords.update(saved_phoneme_words)
+                saved_phoneme_words[word] = phoneme
+                print('Getting phoneme for ' + word + ' - ' + phoneme)
+            current_text_phoneme_words[word] = saved_phoneme_words[word]
+
+        SavedPhonemeWords.update(saved_phoneme_words)
+        return current_text_phoneme_words
 
 
 class TextAnalyzer:
+    """
+    Class to analyze text
+    """
     def __init__(self, text):
         self.text = text
         self.words_info = {}
         self.phonemes_count = {}
         self.all_phonemes = 0
 
-        self.unique_phoneme_words = get_unique_phoneme_words(self.text)
+        self.unique_phoneme_words = UniquePhonemeWords(self.text).get()
         print('unique phonemes found')
 
         self._analyze_words()
         self._analyze_phonemes()
 
     def _get_words_list(self):
-        text = remove_dots(self.text).split(' ')
-        return remove_empty_values(text)
-
-    def _get_words_list_phonemes(self, words):
-        text = ""
-        for i in range(0, len(words), 500):
-            text += PhonemeParser().text_to_phoneme(self.text[i:i+500])
-        text = text.split(' ')
+        text = [get_normalized_word(word) for word in self.text.split(' ')]
         return remove_empty_values(text)
 
     def _analyze_words(self):
+        """
+        Loops thought all words and saves information to self.words_info.
+        """
         words = self._get_words_list()
-        # words_transcription = self._get_words_list_phonemes(words)
-        # self._normalize_words_transcription(words, words_transcription)
 
-        # for index, transcription in enumerate(words_transcription):
         for current_word in words:
-            # current_word = words[index]
             if current_word in self.words_info:
                 self.words_info[current_word]['count'] += 1
             else:
@@ -112,24 +155,36 @@ class TextAnalyzer:
                 }
 
     def _analyze_phonemes(self):
+        """
+        Loops through all phonemes and saves how much of each phonemes there are and sum of all phonemes in text.
+        """
         for word_text, word_info in self.words_info.items():
             for phoneme, phoneme_count in word_info['word'].get_phonemes_count().items():
                 self.all_phonemes += phoneme_count * word_info['count']
                 self.phonemes_count[phoneme] = self.phonemes_count.get(phoneme, 0) + phoneme_count * word_info['count']
 
     def get_initial_percentage(self):
+        """
+        Calculates how much percentage does each phoneme take in initial text.
+        :return: dict {phoneme: percentage}
+        """
         percentage = {}
         for phoneme, count in self.phonemes_count.items():
             percentage[phoneme] = count / self.all_phonemes
         return percentage
 
     def get_percentage(self, chunk):
-        chunk = remove_dots(chunk)
-        # print('chunk', chunk)
+        """
+        Calculates how much percentage does each phoneme take in given chunk of initial text.
+        :param chunk: string, part of initial text
+        :return: dict {phoneme: percentage}
+        """
         all_phonemes = 0
         phonemes = {}
-        for word in remove_empty_values(chunk.split(' ')):
-            word = word.strip()
+        for word in chunk.split(' '):
+            word = get_normalized_word(word)
+            if not word:
+                continue
             phonemes_count = self.words_info[word]['word'].get_phonemes_count()
             for phoneme, count in phonemes_count.items():
                 phonemes[phoneme] = phonemes.get(phoneme, 0) + count
@@ -140,17 +195,11 @@ class TextAnalyzer:
             percentage[phoneme] = count / all_phonemes
         return percentage
 
-    @classmethod
-    def _normalize_words_transcription(cls, words, words_transcription):
-        for i, word in enumerate(words):
-            if i < 100:
-                print(word, words_transcription[i])
-            if '-' in word:
-                words_transcription[i] = words_transcription[i] + words_transcription[i + 1]
-                words_transcription.pop(i + 1)
-
 
 class TextSynthesis:
+    """
+    Class that synthesises new text
+    """
     PVALUE = 'pvalue'
     STATISTIC = 'statistic'
     SENTENCE = 'sentence'
@@ -170,51 +219,133 @@ class TextSynthesis:
         print('self.initial_distribution', self.initial_distribution)
 
     def synthesize_by_deleting_chunks(self):
-        result_chunks = ''
-        text = self.text
+        """
+        Synthesizes result text by deleting chunks that are less relevant.
+        At every step of te loop, the chunk that has furthest distribution from text's.
+        This chunks is removed from text.
+        The loop ends when text's distribution is not relevant.
+        :return: string, result text
+        """
+        text_list = self._text_to_list_by_mode()
         chunks = self._get_chunks_by_mode()
         iterations_number = 0
-        while not self.text_is_relevant(result_chunks):
+        while_start = datetime.datetime.now()
+        while self.text_is_relevant(' '.join(text_list)):
             loop_start = datetime.datetime.now()
-            text_distribution = self.text_analyzer.get_percentage(text)
-            best_chunk = self.get_best_chunk(chunks, text_distribution) + '.'
-            result_chunks += ' ' + best_chunk
-            chunks = [value for value in chunks if value != best_chunk]
-            text = text.replace(best_chunk, '')
+            text_distribution = self.text_analyzer.get_percentage(' '.join(text_list))
+            worst_chunk = self.get_worst_chunk(chunks, text_distribution)
+            chunks = [value for value in chunks if value != worst_chunk]
+            text_list = [value for value in text_list if value != worst_chunk]
 
             iterations_number += 1
-            print('result', best_chunk)
             print('iteration', iterations_number)
             print('time', datetime.datetime.now() - loop_start)
+            print('removing', worst_chunk)
+            print('-------------------')
+        print('whole time', datetime.datetime.now() - while_start)
+        print('p_value_level', self.p_value_level)
+        print('distribution_criteria', self.distribution_criteria)
+        print('mode', self.mode)
+        print('result', ' '.join(chunks))
+        return ' '.join(chunks)
+
+    def synthesize_by_appending_chunks(self):
+        """
+        Synthesizes result text by getting most relevant chunk from initial text.
+        At every step of the loop, the chunk that has closest distribution to text's is picked.
+        This chunk is added to result and removed from text.
+        The loop ends when the distribution of result is close to initial distribution
+        :return: string, result text
+        """
+        result_chunks = ''
+        text_list = self._text_to_list_by_mode()
+        chunks = self._get_chunks_by_mode()
+        iterations_number = 0
+        while_start = datetime.datetime.now()
+        while not self.text_is_relevant(result_chunks):
+            loop_start = datetime.datetime.now()
+            text_distribution = self.text_analyzer.get_percentage(' '.join(text_list))
+            best_chunk = self.get_best_chunk(chunks, text_distribution)
+            result_chunks += ' ' + best_chunk + '.'
+            chunks = [value for value in chunks if value != best_chunk]
+            text_list = [value for value in text_list if value != best_chunk]
+
+            iterations_number += 1
+            print('iteration', iterations_number)
+            print('time', datetime.datetime.now() - loop_start)
+            print('result', best_chunk)
+            print('-------------------')
+        print('whole time', datetime.datetime.now() - while_start)
+        print('p_value_level', self.p_value_level)
+        print('distribution_criteria', self.distribution_criteria)
+        print('mode', self.mode)
+        print('result', result_chunks)
         return result_chunks
 
-    def get_best_chunk(self, chunks, text_distribution ):
-        # print('get_best_chunk', text, chunks)
+    def get_best_chunk(self, chunks, text_distribution):
+        """
+        Gets most relevant chunk from chunks. Looks at self.distribution_criteria and picks the chunk that is fits best.
+        :param chunks: list of chunks
+        :param text_distribution: initial distribution to compare
+        :return: best chunk, string
+        """
         chunks_ks_test = {}
         highest_p_value = -1
-        highest_p_value_chunk_index = None
+        highest_p_value_chunk = None
         smallest_statistic = 2
-        smallest_statistic_chunk_index = None
+        smallest_statistic_chunk = None
         for i, chunk in enumerate(chunks):
             chunk = remove_dots(chunk)
             if not chunk:
                 continue
-            print('Analyzing.. ' + chunk)
             chunk_distribution = self.text_analyzer.get_percentage(chunk)
             ks_test = stats.ks_2samp(list(chunk_distribution.values()), list(text_distribution.values()))
             chunks_ks_test[i] = ks_test
 
             if ks_test.statistic < smallest_statistic:
                 smallest_statistic = ks_test.statistic
-                smallest_statistic_chunk_index = i
+                smallest_statistic_chunk = chunk
             if ks_test.pvalue > highest_p_value:
                 highest_p_value = ks_test.pvalue
-                highest_p_value_chunk_index = i
+                highest_p_value_chunk = chunk
 
         if self.distribution_criteria == self.PVALUE:
-            return chunks[highest_p_value_chunk_index]
+            return highest_p_value_chunk
         if self.distribution_criteria == self.STATISTIC:
-            return chunks[smallest_statistic_chunk_index]
+            return smallest_statistic_chunk
+
+    def get_worst_chunk(self, chunks, text_distribution):
+        """
+        Gets least relevant chunk from chunks. Looks at self.distribution_criteria and picks the chunk that is less
+        relevant.
+        :param chunks: list of chunks
+        :param text_distribution: initial distribution to compare
+        :return: least relevant chunk, string
+        """
+        chunks_ks_test = {}
+        smallest_p_value = 2
+        smallest_p_value_chunk = None
+        highest_statistic = -1
+        highest_statistic_chunk = None
+        for i, chunk in enumerate(chunks):
+            chunk = remove_dots(chunk)
+            if not chunk:
+                continue
+            chunk_distribution = self.text_analyzer.get_percentage(chunk)
+            ks_test = stats.ks_2samp(list(chunk_distribution.values()), list(text_distribution.values()))
+            chunks_ks_test[i] = ks_test
+
+            if ks_test.statistic > highest_statistic:
+                highest_statistic = ks_test.statistic
+                highest_statistic_chunk = chunk
+            if ks_test.pvalue < smallest_p_value:
+                smallest_p_value = ks_test.pvalue
+                smallest_p_value_chunk = chunk
+
+        if self.distribution_criteria == self.PVALUE:
+            return smallest_p_value_chunk
+        if self.distribution_criteria == self.STATISTIC:
+            return highest_statistic_chunk
 
     def _get_chunks_by_mode(self):
         if self.mode == self.SENTENCE:
@@ -222,26 +353,23 @@ class TextSynthesis:
         if self.mode == self.WORD:
             return self.text_analyzer.unique_phoneme_words.keys()
 
-        # highest_p_value_chunk = chunks_ks_test[highest_p_value_chunk_index]
-        # smallest_statistic_chunk = chunks_ks_test[smallest_statistic_chunk_index]
-
-        # if highest_p_value_chunk == smallest_statistic_chunk:
-        #     return chunks[highest_p_value_chunk_index]
-        #
-        # #if p_value is closer to 1 than statistic to 0
-        # if 1 - highest_p_value_chunk.p_value < smallest_statistic_chunk.statistic:
-        #     return chunks[highest_p_value_chunk_index]
-        # return chunks[smallest_statistic_chunk_index]
+    def _text_to_list_by_mode(self):
+        if self.mode == self.SENTENCE:
+            return self.text.split('.')
+        if self.mode == self.WORD:
+            return [get_normalized_word(word) for word in self.text.split(' ')]
 
     def text_is_relevant(self, text):
+        """
+        Compares distributions of given text and initial. Returns whether the text has similar distribution or not.
+        :param text: string
+        :return: bool
+        """
         if not text:
             return False
         synthesis_text_distribution = self.text_analyzer.get_percentage(text)
-        # print('initial_distribution', self.initial_distribution)
-        # print('synthesis_text_distribution', synthesis_text_distribution)
         ks_test = stats.ks_2samp(list(synthesis_text_distribution.values()), list(self.initial_distribution.values()))
-        # print('==========')
-        # print('ks_test', ks_test)
+        print('compare to initial', ks_test.pvalue )
         return ks_test.pvalue > self.p_value_level
 
     def _normalize_text(self, text):
@@ -258,6 +386,9 @@ class TextSynthesis:
 
 
 class Word:
+    """
+    Class to help handle the words transcription.
+    """
     def __init__(self, text, transcription):
         self.text = text
         self.transcription = transcription
@@ -283,15 +414,3 @@ class Word:
 
     def get_percentage(self):
         pass
-
-
-
-class Sentence:
-    def __init__(self):
-        pass
-
-
-def entropy(*X):
-    return np.sum(-p * np.log2(p) if p > 0 else 0 for p in
-        (np.mean(reduce(np.logical_and, (predictions == c for predictions, c in zip(X, classes))))
-            for classes in itertools.product(*[set(x) for x in X])))
