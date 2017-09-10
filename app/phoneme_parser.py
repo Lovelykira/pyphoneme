@@ -58,7 +58,7 @@ class SavedPhonemeWords:
     """
     Class that saves/gets words and theirs phonemes to/from file.
     """
-    FILE_NAME = "s.json"
+    FILE_NAME = "saved_phonemes.json"
 
     @classmethod
     def get(cls):
