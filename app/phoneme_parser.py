@@ -241,7 +241,6 @@ class TextSynthesis:
             print('iteration', iterations_number)
             print('time', datetime.datetime.now() - loop_start)
             print('removing', worst_chunk)
-            print('-------------------')
         print('whole time', datetime.datetime.now() - while_start)
         print('p_value_level', self.p_value_level)
         print('distribution_criteria', self.distribution_criteria)
@@ -274,7 +273,6 @@ class TextSynthesis:
             print('iteration', iterations_number)
             print('time', datetime.datetime.now() - loop_start)
             print('result', best_chunk)
-            print('-------------------')
         print('whole time', datetime.datetime.now() - while_start)
         print('p_value_level', self.p_value_level)
         print('distribution_criteria', self.distribution_criteria)
@@ -295,7 +293,6 @@ class TextSynthesis:
         smallest_statistic = 2
         smallest_statistic_chunk = None
         for i, chunk in enumerate(chunks):
-            chunk = remove_dots(chunk)
             if not chunk:
                 continue
             chunk_distribution = self.text_analyzer.get_percentage(chunk)
@@ -328,7 +325,6 @@ class TextSynthesis:
         highest_statistic = -1
         highest_statistic_chunk = None
         for i, chunk in enumerate(chunks):
-            chunk = remove_dots(chunk)
             if not chunk:
                 continue
             chunk_distribution = self.text_analyzer.get_percentage(chunk)
@@ -369,7 +365,8 @@ class TextSynthesis:
             return False
         synthesis_text_distribution = self.text_analyzer.get_percentage(text)
         ks_test = stats.ks_2samp(list(synthesis_text_distribution.values()), list(self.initial_distribution.values()))
-        print('compare to initial', ks_test.pvalue )
+        print('compare to initial', ks_test.pvalue)
+        print('-------------------')
         return ks_test.pvalue > self.p_value_level
 
     def _normalize_text(self, text):

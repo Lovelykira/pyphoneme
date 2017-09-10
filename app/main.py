@@ -7,5 +7,5 @@ WORD = 'word'
 if __name__ == '__main__':
     file = open("file.txt", "r")
     text = file.read()
-    # TextSynthesis(text=text, mode=SENTENCE).synthesize_by_deleting_chunks()
-    TextSynthesis(text=text, mode=SENTENCE).synthesize_by_appending_chunks()
+    TextSynthesis(text=text, mode=SENTENCE).synthesize_by_deleting_chunks()
+    # TextSynthesis(text=text, mode=WORD).synthesize_by_appending_chunks()
