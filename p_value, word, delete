@@ -1,0 +1,18 @@
+p_value, word, delete
+p_value, word, append
+p_value, sentense, delete
+p_value, sentense, append
+statistic, word, delete
+statistic, word, append
+statistic, sentense, delete
+statistic, sentense, append
+
+1. python main.py --mode=word --method=delete --compare=pvalue --file='Airport-Arthur_Hailey.txt'
+2. python main.py --mode=word --method=append --compare=pvalue --file='Airport-Arthur_Hailey.txt'
+3. python main.py --mode=sentense --method=delete --compare=pvalue --file='Airport-Arthur_Hailey.txt'
+4. python main.py --mode=sentense --method=append --compare=pvalue --file='Airport-Arthur_Hailey.txt'
+
+5. python main.py --mode=word --method=delete --compare=statistic --file='Airport-Arthur_Hailey.txt'
+6. python main.py --mode=word --method=append --compare=statistic --file='Airport-Arthur_Hailey.txt'
+7. python main.py --mode=sentense --method=delete --compare=statistic --file='Airport-Arthur_Hailey.txt'
+8. python main.py --mode=sentense --method=append --compare=statistic --file='Airport-Arthur_Hailey.txt'
