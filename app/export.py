@@ -7,7 +7,7 @@ class JSONExport:
 
     def __init__(self, data, file_name=None):
         self.data = data
-        self.file_name = file_name or 'reports/synthesis_by_{}_{}.json'.format(datetime.now(), data['mode'], data['synthesis_mode'])
+        self.file_name = file_name or 'reports/synthesis_by_{}_{}.json'.format(data['mode'], data['synthesis_mode'], datetime.now())
 
     def save(self):
         file = open(self.file_name, "w")
@@ -18,7 +18,7 @@ class JSONExport:
 class SpreadsheetExport:
     def __init__(self, data, file_name=None):
         self.data = data
-        self.file_name = file_name or 'reports/synthesis_by_{}_{}.xlsx'.format(datetime.now(), data['mode'], data['synthesis_mode'])
+        self.file_name = file_name or 'reports/synthesis_by_{}_{}.xlsx'.format(data['mode'], data['synthesis_mode'], datetime.now())
 
     def save(self):
 
