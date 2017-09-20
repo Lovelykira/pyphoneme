@@ -221,6 +221,7 @@ class TextSynthesis:
         self.text_distribution = None
         self.result_text = None
         self.run_time = None
+        self.iterations_number = 0
         self.synthesis_mode = synthesis_mode or self.SYNTHESIS_APPEND
         print('self.initial_distribution', self.initial_distribution)
 
@@ -235,6 +236,7 @@ class TextSynthesis:
             'initial_distribution': self.initial_distribution,
             'result_distribution': self.text_distribution,
             'run_time': str(self.run_time),
+            'iterations_number': self.iterations_number,
             'synthesis_mode': self.synthesis_mode,
             'answer': self.result_text
         }
@@ -275,6 +277,7 @@ class TextSynthesis:
         print('result', ' '.join(chunks))
 
         self.run_time = datetime.datetime.now() - while_start
+        self.iterations_number = iterations_number
         self.result_text = ' '.join(chunks)
         self.text_distribution = self.text_analyzer.get_percentage(self.result_text)
         return self.result_text
@@ -312,6 +315,7 @@ class TextSynthesis:
         print('result', result_chunks)
 
         self.run_time = datetime.datetime.now() - while_start
+        self.iterations_number = iterations_number
         self.result_text = result_chunks
         self.text_distribution = self.text_analyzer.get_percentage(self.result_text)
         return self.result_text

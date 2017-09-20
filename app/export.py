@@ -46,6 +46,9 @@ class SpreadsheetExport:
         worksheet.write(4, 0, 'Running time')
         worksheet.write(4, 1, self.data['run_time'])
 
+        worksheet.write(4, 3, 'Iterations')
+        worksheet.write(4, 4, self.data['iterations_number'])
+
         worksheet.write(5, 0, 'Date')
         worksheet.write(5, 1, self.data['date'])
 
