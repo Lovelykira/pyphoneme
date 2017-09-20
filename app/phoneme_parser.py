@@ -222,6 +222,7 @@ class TextSynthesis:
         self.result_text = None
         self.run_time = None
         self.iterations_number = 0
+        self.test_p_value_level = 0
         self.synthesis_mode = synthesis_mode or self.SYNTHESIS_APPEND
         print('self.initial_distribution', self.initial_distribution)
 
@@ -238,6 +239,7 @@ class TextSynthesis:
             'run_time': str(self.run_time),
             'iterations_number': self.iterations_number,
             'synthesis_mode': self.synthesis_mode,
+            'test_p_value_level': self.test_p_value_level,
             'answer': self.result_text
         }
 
@@ -407,6 +409,7 @@ class TextSynthesis:
         ks_test = stats.ks_2samp(list(synthesis_text_distribution.values()), list(self.initial_distribution.values()))
         print('compare to initial', ks_test.pvalue)
         print('-------------------')
+        self.test_p_value_level = ks_test.pvalue
         return ks_test.pvalue > self.p_value_level
 
     def _normalize_text(self, text):
