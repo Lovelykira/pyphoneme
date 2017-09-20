@@ -257,7 +257,6 @@ class TextSynthesis:
         chunks = self._get_chunks_by_mode()
         iterations_number = 0
         while_start = datetime.datetime.now()
-        text_distribution = None
         while self.text_is_relevant(' '.join(text_list)):
             loop_start = datetime.datetime.now()
             text_distribution = self.text_analyzer.get_percentage(' '.join(text_list))
@@ -276,8 +275,8 @@ class TextSynthesis:
         print('result', ' '.join(chunks))
 
         self.run_time = datetime.datetime.now() - while_start
-        self.text_distribution = text_distribution
         self.result_text = ' '.join(chunks)
+        self.text_distribution = self.text_analyzer.get_percentage(self.result_text)
         return self.result_text
 
     def synthesize_by_appending_chunks(self):
@@ -294,7 +293,6 @@ class TextSynthesis:
         iterations_number = 0
         while_start = datetime.datetime.now()
 
-        text_distribution = None
         while not self.text_is_relevant(result_chunks):
             loop_start = datetime.datetime.now()
             text_distribution = self.text_analyzer.get_percentage(' '.join(text_list))
@@ -314,8 +312,8 @@ class TextSynthesis:
         print('result', result_chunks)
 
         self.run_time = datetime.datetime.now() - while_start
-        self.text_distribution = text_distribution
         self.result_text = result_chunks
+        self.text_distribution = self.text_analyzer.get_percentage(self.result_text)
         return self.result_text
 
     def get_best_chunk(self, chunks, text_distribution):
