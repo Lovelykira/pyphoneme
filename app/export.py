@@ -31,6 +31,9 @@ class SpreadsheetExport:
         worksheet.write(1, 0, 'Criteria')
         worksheet.write(1, 1, self.data['criteria'])
 
+        worksheet.write(1, 3, 'P Value')
+        worksheet.write(1, 4, self.data['p_value_level'])
+
         worksheet.write(2, 0, 'Initial words')
         worksheet.write(2, 1, self.data['initial_words'])
 
