@@ -22,13 +22,9 @@ if __name__ == '__main__':
     file = open(args.file, "r")
 
     text = file.read()
-    text_synth = TextSynthesis(text=text, mode=mode, p_value_level=args.pvalue, distribution_criteria=compare)
+    text_synth = TextSynthesis(text=text, mode=mode, p_value_level=args.pvalue, distribution_criteria=compare, synthesis_mode=args.method)
 
-    if args.method == 'append':
-        text_synth.synthesize_by_appending_chunks()
-
-    if args.method == 'delete':
-        text_synth.synthesize_by_deleting_chunks()
+    text_synth.synthesis()
 
     if args.report not in ['false', 'no', 'skip', 0]:
         SpreadsheetExport(data=text_synth.get_results()).save()

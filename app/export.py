@@ -7,18 +7,18 @@ class JSONExport:
 
     def __init__(self, data, file_name=None):
         self.data = data
-        self.file_name = file_name or "reports/{}_phone.json".format(datetime.now())
+        self.file_name = file_name or 'reports/synthesis_by_{}_{}.json'.format(datetime.now(), data['mode'], data['synthesis_mode'])
 
     def save(self):
         file = open(self.file_name, "w")
-        file.write(json.dumps(self.data, indent=4, sort_keys=True))
+        file.write(json.dumps(self.data, indent=2, sort_keys=True))
         file.close()
 
 
 class SpreadsheetExport:
     def __init__(self, data, file_name=None):
         self.data = data
-        self.file_name = file_name or 'reports/synthes_{}.xlsx'.format(datetime.now())
+        self.file_name = file_name or 'reports/synthesis_by_{}_{}.xlsx'.format(datetime.now(), data['mode'], data['synthesis_mode'])
 
     def save(self):
 
@@ -27,6 +27,9 @@ class SpreadsheetExport:
 
         worksheet.write(0, 0, 'Mode')
         worksheet.write(0, 1, self.data['mode'])
+
+        worksheet.write(0, 3, 'Synthesis')
+        worksheet.write(0, 4, self.data['synthesis_mode'])
 
         worksheet.write(1, 0, 'Criteria')
         worksheet.write(1, 1, self.data['criteria'])
@@ -65,9 +68,9 @@ class SpreadsheetExport:
         worksheet.write(7, 4, 'Result distribution')
         row = 8
         col = 4
-        for key in sorted(self.data['result_distribution'].keys()):
+        for key in sorted(self.data['initial_distribution'].keys()):
             worksheet.write(row, col, key)
-            worksheet.write(row, col + 1, self.data['result_distribution'][key] * 100)
+            worksheet.write(row, col + 1, self.data['result_distribution'].get(key, 0) * 100)
             row += 1
 
         chart1.add_series({

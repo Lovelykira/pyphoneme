@@ -208,8 +208,10 @@ class TextSynthesis:
     AVAILABLE_MODES = [SENTENCE, WORD]
     DEFAULT_CRETERIA = PVALUE
     DEFAULT_MODE = SENTENCE
+    SYNTHESIS_APPEND = 'append'
+    SYNTHESIS_DELETE = 'delete'
 
-    def __init__(self, text, mode=None, p_value_level=0.7, distribution_criteria=None):
+    def __init__(self, text, mode=None, p_value_level=0.7, distribution_criteria=None, synthesis_mode=None):
         self.text = self._normalize_text(text)
         self.p_value_level = p_value_level
         self.mode = mode if mode in self.AVAILABLE_MODES else self.DEFAULT_MODE
@@ -219,10 +221,11 @@ class TextSynthesis:
         self.text_distribution = None
         self.result_text = None
         self.run_time = None
+        self.synthesis_mode = synthesis_mode or self.SYNTHESIS_APPEND
         print('self.initial_distribution', self.initial_distribution)
 
     def get_results(self):
-        data = {
+        return {
             'mode': self.mode,
             'criteria': self.distribution_criteria,
             'p_value_level': self.p_value_level,
@@ -232,9 +235,15 @@ class TextSynthesis:
             'initial_distribution': self.initial_distribution,
             'result_distribution': self.text_distribution,
             'run_time': str(self.run_time),
+            'synthesis_mode': self.synthesis_mode,
             'answer': self.result_text
         }
-        return data
+
+    def synthesis(self):
+        if self.synthesis_mode == self.SYNTHESIS_APPEND:
+            return self.synthesize_by_appending_chunks()
+        if self.synthesis_mode == self.SYNTHESIS_DELETE:
+            return self.synthesize_by_deleting_chunks()
 
     def synthesize_by_deleting_chunks(self):
         """
