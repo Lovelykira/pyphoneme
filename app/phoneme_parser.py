@@ -216,7 +216,25 @@ class TextSynthesis:
         self.distribution_criteria = distribution_criteria if distribution_criteria in self.AVAILABLE_CRETERIAS else self.DEFAULT_CRETERIA
         self.text_analyzer = TextAnalyzer(self.text)
         self.initial_distribution = self.text_analyzer.get_initial_percentage()
+        self.text_distribution = None
+        self.result_text = None
+        self.run_time = None
         print('self.initial_distribution', self.initial_distribution)
+
+    def get_results(self):
+        data = {
+            'mode': self.mode,
+            'criteria': self.distribution_criteria,
+            'p_value_level': self.p_value_level,
+            'date': datetime.datetime.now().isoformat(),
+            'initial_words': len(self.text.split(' ')),
+            'result_words': len(self.result_text.split(' ')),
+            'initial_distribution': self.initial_distribution,
+            'result_distribution': self.text_distribution,
+            'run_time': str(self.run_time),
+            'answer': self.result_text
+        }
+        return data
 
     def synthesize_by_deleting_chunks(self):
         """
@@ -230,6 +248,7 @@ class TextSynthesis:
         chunks = self._get_chunks_by_mode()
         iterations_number = 0
         while_start = datetime.datetime.now()
+        text_distribution = None
         while self.text_is_relevant(' '.join(text_list)):
             loop_start = datetime.datetime.now()
             text_distribution = self.text_analyzer.get_percentage(' '.join(text_list))
@@ -246,7 +265,11 @@ class TextSynthesis:
         print('distribution_criteria', self.distribution_criteria)
         print('mode', self.mode)
         print('result', ' '.join(chunks))
-        return ' '.join(chunks)
+
+        self.run_time = datetime.datetime.now() - while_start
+        self.text_distribution = text_distribution
+        self.result_text = ' '.join(chunks)
+        return self.result_text
 
     def synthesize_by_appending_chunks(self):
         """
@@ -261,6 +284,8 @@ class TextSynthesis:
         chunks = self._get_chunks_by_mode()
         iterations_number = 0
         while_start = datetime.datetime.now()
+
+        text_distribution = None
         while not self.text_is_relevant(result_chunks):
             loop_start = datetime.datetime.now()
             text_distribution = self.text_analyzer.get_percentage(' '.join(text_list))
@@ -278,7 +303,11 @@ class TextSynthesis:
         print('distribution_criteria', self.distribution_criteria)
         print('mode', self.mode)
         print('result', result_chunks)
-        return result_chunks
+
+        self.run_time = datetime.datetime.now() - while_start
+        self.text_distribution = text_distribution
+        self.result_text = result_chunks
+        return self.result_text
 
     def get_best_chunk(self, chunks, text_distribution):
         """
