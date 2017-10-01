@@ -23,13 +23,13 @@ def main():
 	for iWord in xrange(0,len(data),chunk_size):
 		se=' '.join(data[iWord:iWord+chunk_size])
 		tr=check_output(["espeak", "-q", "--ipa", '-v', 'en-us', se]).decode('utf-8')
-		print se, ' ', tr
+		print(se, ' ', tr)
 		letters=[item for item in tr]
-		print '-'.join(letters)
+		print('-'.join(letters))
 		#return
 		transcriptions.append(tr)
 
-	#print transcriptions
+	#print(transcriptions)
 
 if __name__ == '__main__':
 	main()
