@@ -117,8 +117,9 @@ class UniquePhonemeWords:
             if word not in saved_phoneme_words.keys():
                 try:
                     phoneme = EspeakPhonemeParser().text_to_phoneme(word)
-                except:
+                except Exception:
                     SavedPhonemeWords.update(saved_phoneme_words)
+                    raise
                 saved_phoneme_words[word] = phoneme
                 print('Getting phoneme for ' + word + ' - ' + phoneme)
             current_text_phoneme_words[word] = saved_phoneme_words[word]
@@ -220,10 +221,11 @@ class TextAnalyzer:
             percentage['triplets'][triplet] = triplet_count / self.triplet_phonemes_count
         return percentage
 
-    def get_percentage(self, chunk):
+    def get_percentage(self, chunk, phonemes_num):
         """
         Calculates how much percentage does each phoneme take in given chunk of initial text.
         :param chunk: string, part of initial text
+        :param phonemes_num: string, number of phonemes to get percentage - 'single', 'pairs', 'triplets'
         :return: dict {phoneme: percentage}
         """
         all_phonemes = 0
@@ -232,7 +234,7 @@ class TextAnalyzer:
             word = get_normalized_word(word)
             if not word:
                 continue
-            phonemes_count = self.words_info[word]['word'].phonemes_dict['single']
+            phonemes_count = self.words_info[word]['word'].phonemes_dict[phonemes_num]
             for phoneme, count in phonemes_count.items():
                 phonemes[phoneme] = phonemes.get(phoneme, 0) + count
                 all_phonemes += count
@@ -257,14 +259,18 @@ class TextSynthesis:
     DEFAULT_MODE = SENTENCE
     SYNTHESIS_APPEND = 'append'
     SYNTHESIS_DELETE = 'delete'
+    MAX_PHONEME_GROUP_SIZE = 3
 
-    def __init__(self, text, mode=None, p_value_level=0.7, distribution_criteria=None, synthesis_mode=None):
+    def __init__(
+            self, text, mode=None, p_value_level=0.7, distribution_criteria=None, synthesis_mode=None, phoneme_group_size=1
+    ):
         self.text = self._normalize_text(text)
         self.p_value_level = p_value_level
         self.mode = mode if mode in self.AVAILABLE_MODES else self.DEFAULT_MODE
+        self.phoneme_group_size = phoneme_group_size if phoneme_group_size <= self.MAX_PHONEME_GROUP_SIZE else 1
         self.distribution_criteria = distribution_criteria if distribution_criteria in self.AVAILABLE_CRETERIAS else self.DEFAULT_CRETERIA
         self.text_analyzer = TextAnalyzer(self.text)
-        self.initial_distribution = self.text_analyzer.get_initial_percentage()
+        self.initial_distribution = self._get_distribution(self.text)
         self.text_distribution = None
         self.result_text = None
         self.run_time = None
@@ -287,6 +293,7 @@ class TextSynthesis:
             'iterations_number': self.iterations_number,
             'synthesis_mode': self.synthesis_mode,
             'test_p_value_level': self.test_p_value_level,
+            'phoneme_group_size': self.phoneme_group_size,
             'answer': self.result_text
         }
 
@@ -295,6 +302,14 @@ class TextSynthesis:
             return self.synthesize_by_appending_chunks()
         if self.synthesis_mode == self.SYNTHESIS_DELETE:
             return self.synthesize_by_deleting_chunks()
+
+    def _get_distribution(self, chunk):
+        percentage = self.text_analyzer.get_percentage(chunk, 'single')
+        if self.phoneme_group_size >= 2:
+            percentage.update(self.text_analyzer.get_percentage(chunk, 'pairs'))
+        if self.phoneme_group_size == 3:
+            percentage.update(self.text_analyzer.get_percentage(chunk, 'triplets'))
+        return percentage
 
     def synthesize_by_deleting_chunks(self):
         """
@@ -309,13 +324,15 @@ class TextSynthesis:
         iterations_number = 0
         while_start = datetime.datetime.now()
         while self.text_is_relevant(' '.join(text_list)):
+            iterations_number += 1
             loop_start = datetime.datetime.now()
-            text_distribution = self.text_analyzer.get_percentage(' '.join(text_list))
+            text_distribution = self._get_distribution(' '.join(text_list))
             worst_chunk = self.get_worst_chunk(chunks, text_distribution)
+            if not worst_chunk:
+                break
             chunks = [value for value in chunks if value != worst_chunk]
             text_list = [value for value in text_list if value != worst_chunk]
 
-            iterations_number += 1
             print('iteration', iterations_number)
             print('time', datetime.datetime.now() - loop_start)
             print('removing', worst_chunk)
@@ -328,7 +345,7 @@ class TextSynthesis:
         self.run_time = datetime.datetime.now() - while_start
         self.iterations_number = iterations_number
         self.result_text = ' '.join(chunks)
-        self.text_distribution = self.text_analyzer.get_percentage(self.result_text)
+        self.text_distribution = self._get_distribution(self.result_text)
         return self.result_text
 
     def synthesize_by_appending_chunks(self):
@@ -346,14 +363,16 @@ class TextSynthesis:
         while_start = datetime.datetime.now()
 
         while not self.text_is_relevant(result_chunks):
+            iterations_number += 1
             loop_start = datetime.datetime.now()
-            text_distribution = self.text_analyzer.get_percentage(' '.join(text_list))
+            text_distribution = self._get_distribution(' '.join(text_list))
             best_chunk = self.get_best_chunk(chunks, text_distribution)
+            if not best_chunk:
+                break
             result_chunks += ' ' + best_chunk + '.'
             chunks = [value for value in chunks if value != best_chunk]
             text_list = [value for value in text_list if value != best_chunk]
 
-            iterations_number += 1
             print('iteration', iterations_number)
             print('time', datetime.datetime.now() - loop_start)
             print('result', best_chunk)
@@ -366,7 +385,7 @@ class TextSynthesis:
         self.run_time = datetime.datetime.now() - while_start
         self.iterations_number = iterations_number
         self.result_text = result_chunks
-        self.text_distribution = self.text_analyzer.get_percentage(self.result_text)
+        self.text_distribution = self._get_distribution(self.result_text)
         return self.result_text
 
     def get_best_chunk(self, chunks, text_distribution):
@@ -384,8 +403,9 @@ class TextSynthesis:
         for i, chunk in enumerate(chunks):
             if not chunk:
                 continue
-            chunk_distribution = self.text_analyzer.get_percentage(chunk)
-            ks_test = stats.ks_2samp(list(chunk_distribution.values()), list(text_distribution.values()))
+            chunk_distribution =  self._get_distribution(chunk)
+            values_initial, values_chunk = self._get_values(text_distribution, chunk_distribution)
+            ks_test = stats.ks_2samp(values_initial, values_chunk)
             chunks_ks_test[i] = ks_test
 
             if ks_test.statistic < smallest_statistic:
@@ -416,8 +436,9 @@ class TextSynthesis:
         for i, chunk in enumerate(chunks):
             if not chunk:
                 continue
-            chunk_distribution = self.text_analyzer.get_percentage(chunk)
-            ks_test = stats.ks_2samp(list(chunk_distribution.values()), list(text_distribution.values()))
+            chunk_distribution =  self._get_distribution(chunk)
+            values_initial, values_chunk = self._get_values(text_distribution, chunk_distribution)
+            ks_test = stats.ks_2samp(values_initial, values_chunk)
             chunks_ks_test[i] = ks_test
 
             if ks_test.statistic > highest_statistic:
@@ -444,6 +465,16 @@ class TextSynthesis:
         if self.mode == self.WORD:
             return [get_normalized_word(word) for word in self.text.split(' ')]
 
+    def _get_values(self, initial, chunk):
+        values_initial = []
+        values_chunk = []
+
+        for key in initial.keys():
+            values_initial.append(initial[key])
+            values_chunk.append(chunk.get(key, 0))
+
+        return values_initial, values_chunk
+
     def text_is_relevant(self, text):
         """
         Compares distributions of given text and initial. Returns whether the text has similar distribution or not.
@@ -452,12 +483,15 @@ class TextSynthesis:
         """
         if not text:
             return False
-        synthesis_text_distribution = self.text_analyzer.get_percentage(text)
-        ks_test = stats.ks_2samp(list(synthesis_text_distribution.values()), list(self.initial_distribution['single'].values()))
+        synthesis_text_distribution =  self._get_distribution(text)
+        values_initial, values_chunk = self._get_values(self.initial_distribution, synthesis_text_distribution)
+        ks_test = stats.ks_2samp(values_initial, values_chunk)
         print('compare to initial', ks_test.pvalue)
         print('-------------------')
-        self.test_p_value_level = ks_test.pvalue
-        return ks_test.pvalue > self.p_value_level
+        is_relevant = ks_test.pvalue >= self.p_value_level
+        if is_relevant:
+            self.test_p_value_level = ks_test.pvalue
+        return is_relevant
 
     def _normalize_text(self, text):
         text = text.replace('?', '.')
@@ -539,7 +573,6 @@ class Word:
                 if self._next_phoneme_exists(i+1):
                     triplet = pair + self._next_phoneme(i+1)
                     phonemes_dict['triplets'][triplet] = phonemes_dict['triplets'].get(triplet, 0) + 1
-        print(phonemes_dict)
         return phonemes_dict
 
     def _next_phoneme(self, current_index):

@@ -3,11 +3,19 @@ import json
 import xlsxwriter
 
 
+PHONEMES_NUM = {
+    1: 'single',
+    2: 'pairs',
+    3: 'triplets'
+}
+
+
 class JSONExport:
 
     def __init__(self, data, file_name=None):
         self.data = data
-        self.file_name = file_name or 'reports/synthesis_by_{}_{}_by_{}_{}.json'.format(data['mode'], data['synthesis_mode'], data['criteria'], datetime.now())
+        phonemes_num = PHONEMES_NUM[data['phoneme_group_size']]
+        self.file_name = file_name or 'reports/synthesis_by_{}_{}_by_{}_{}_{}.json'.format(data['mode'], data['synthesis_mode'], data['criteria'], phonemes_num, datetime.now())
 
     def save(self):
         file = open(self.file_name, "w")
@@ -18,7 +26,8 @@ class JSONExport:
 class SpreadsheetExport:
     def __init__(self, data, file_name=None):
         self.data = data
-        self.file_name = file_name or 'reports/synthesis_by_{}_{}_by_{}_{}.xlsx'.format(data['mode'], data['synthesis_mode'], data['criteria'], datetime.now())
+        phonemes_num = PHONEMES_NUM[data['phoneme_group_size']]
+        self.file_name = file_name or 'reports/synthesis_by_{}_{}_by_{}_{}.xlsx'.format(data['mode'], data['synthesis_mode'], data['criteria'], phonemes_num, datetime.now())
 
     def save(self):
 
@@ -35,7 +44,7 @@ class SpreadsheetExport:
         worksheet.write(1, 1, self.data['criteria'])
 
         worksheet.write(1, 3, 'P Value:')
-        worksheet.write(1, 4, self.data['p_value_level'])
+        worksheet.write(1, 4, str(self.data['p_value_level']))
 
         worksheet.write(1, 5, 'Result P Value:')
         worksheet.write(1, 6, self.data['test_p_value_level'])
@@ -54,6 +63,9 @@ class SpreadsheetExport:
 
         worksheet.write(5, 0, 'Date:')
         worksheet.write(5, 1, self.data['date'])
+
+        worksheet.write(1, 7, 'phoneme_group_size:')
+        worksheet.write(1, 8, PHONEMES_NUM[self.data['phoneme_group_size']])
 
         worksheet.write(7, 0, 'Initial distribution:')
         chart1 = workbook.add_chart({'type': 'column'})
