@@ -338,6 +338,7 @@ class TextSynthesis:
             print('iteration', iterations_number)
             print('time', datetime.datetime.now() - loop_start)
             print('removing', worst_chunk)
+
         print('whole time', datetime.datetime.now() - while_start)
         print('p_value_level', self.p_value_level)
         print('distribution_criteria', self.distribution_criteria)
@@ -375,6 +376,7 @@ class TextSynthesis:
             if not best_chunk:
                 break
             result_chunks += ' ' + best_chunk + '.'
+
             text_list.remove(best_chunk)
             if best_chunk not in text_list:
                 unique_chunks.remove(best_chunk)
@@ -409,8 +411,11 @@ class TextSynthesis:
         for i, chunk in enumerate(chunks):
             if not chunk:
                 continue
-            chunk_distribution =  self._get_distribution(text + ' ' + chunk)
+
+            chunk_distribution = self._get_distribution(text + ' ' + chunk)
+
             values_initial, values_chunk = self._get_values(self.initial_distribution, chunk_distribution)
+
             ks_test = stats.ks_2samp(values_initial, values_chunk)
             chunks_ks_test[i] = ks_test
 
@@ -431,7 +436,7 @@ class TextSynthesis:
         Gets least relevant chunk from chunks. Looks at self.distribution_criteria and picks the chunk that is less
         relevant.
         :param chunks: list of chunks
-        :param text_distribution: initial distribution to compare
+        :param text: initial distribution to compare
         :return: least relevant chunk, string
         """
         chunks_ks_test = {}
@@ -442,7 +447,8 @@ class TextSynthesis:
         for i, chunk in enumerate(chunks):
             if not chunk:
                 continue
-            chunk_distribution =  self._get_distribution(text.replace(chunk, 1))
+            chunk_distribution = self._get_distribution(text.replace(' ' + chunk + ' ', ' ', 1))
+
             values_initial, values_chunk = self._get_values(self.initial_distribution, chunk_distribution)
             ks_test = stats.ks_2samp(values_initial, values_chunk)
             chunks_ks_test[i] = ks_test
@@ -471,16 +477,6 @@ class TextSynthesis:
         if self.mode == self.WORD:
             return [get_normalized_word(word) for word in self.text.split(' ')]
 
-    def _get_values(self, initial, chunk):
-        values_initial = []
-        values_chunk = []
-
-        for key in initial.keys():
-            values_initial.append(initial[key])
-            values_chunk.append(chunk.get(key, 0))
-
-        return values_initial, values_chunk
-
     def text_is_relevant(self, text):
         """
         Compares distributions of given text and initial. Returns whether the text has similar distribution or not.
@@ -489,7 +485,7 @@ class TextSynthesis:
         """
         if not text:
             return False
-        synthesis_text_distribution =  self._get_distribution(text)
+        synthesis_text_distribution = self._get_distribution(text)
         values_initial, values_chunk = self._get_values(self.initial_distribution, synthesis_text_distribution)
         ks_test = stats.ks_2samp(values_initial, values_chunk)
         print('compare to initial', ks_test.pvalue)
@@ -506,10 +502,20 @@ class TextSynthesis:
 
         text = text.replace('\n', ' ')
         text = text.replace('-', ' ')
-        text = re.sub('[^a-zA-Z .]', '', text).lower()
+        text = re.sub('[^a-zA-Z0-9 .]', '', text).lower()
         if text[-1] != '.':
             text += '.'
         return text
+
+    def _get_values(self, initial, chunk):
+        values_initial = []
+        values_chunk = []
+
+        for key in initial.keys():
+            values_initial.append(initial[key])
+            values_chunk.append(chunk.get(key, 0))
+
+        return values_initial, values_chunk
 
 
 class Word:
@@ -595,13 +601,25 @@ class Word:
         return self._next_phoneme_exists(current_index) and self.transcription[current_index + 1] == self.PROLONGATION_PHONEME
 
 
+def get_dicts_values(initial, chunk):
+    values_initial = []
+    values_chunk = []
+    keys = set(initial.keys()) | set(chunk.keys())
+
+    for key in keys:
+        values_initial.append(initial.get(key, 0))
+        values_chunk.append(chunk.get(key, 0))
+
+    return values_initial, values_chunk
+
+
 def compare_two_texts(text1, text2):
     percentage1 = TextAnalyzer(text1).get_initial_percentage()
     percentage2 = TextAnalyzer(text2).get_initial_percentage()
 
-    ks_test_single = stats.ks_2samp(list(percentage1['single'].values()), list(percentage2['single'].values()))
-    ks_test_pairs = stats.ks_2samp(list(percentage1['pairs'].values()), list(percentage2['pairs'].values()))
-    ks_test_triplets = stats.ks_2samp(list(percentage1['triplets'].values()), list(percentage2['triplets'].values()))
+    ks_test_single = stats.ks_2samp(get_dicts_values(percentage1['single'], percentage2['single']))
+    ks_test_pairs = stats.ks_2samp(get_dicts_values(percentage1['pairs'], percentage2['pairs']))
+    ks_test_triplets = stats.ks_2samp(get_dicts_values(percentage1['triplets'], percentage2['triplets']))
 
     print('percentage1 single', percentage1['single'])
     print('percentage2 single', percentage2['single'])
@@ -619,3 +637,14 @@ def compare_two_texts(text1, text2):
     print('single statistic', ks_test_single.statistic)
     print('pairs statistic', ks_test_pairs.statistic)
     print('triplets statistic', ks_test_triplets.statistic)
+
+time_tracker = {}
+
+
+def track_start(name):
+    time_tracker[name] = datetime.datetime.now()
+
+
+def track_stop(name):
+    time_start = time_tracker.get(name)
+    print('{}: {}'.format(name, datetime.datetime.now() - time_start))

@@ -8,37 +8,37 @@ if __name__ == '__main__':
 
     PARAMETERS = [
         # {'text': text, 'mode': 'word', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'append', 'phoneme_group_size': 1},
-        {'text': text, 'mode': 'word', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'append', 'phoneme_group_size': 2},
-        {'text': text, 'mode': 'word', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'append', 'phoneme_group_size': 3},
+        # {'text': text, 'mode': 'word', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'append', 'phoneme_group_size': 2},
+        # {'text': text, 'mode': 'word', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'append', 'phoneme_group_size': 3},
 
         {'text': text, 'mode': 'word', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'delete', 'phoneme_group_size': 1},
-        {'text': text, 'mode': 'word', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'delete', 'phoneme_group_size': 2},
-        {'text': text, 'mode': 'word', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'delete', 'phoneme_group_size': 3},
+        #{'text': text, 'mode': 'word', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'delete', 'phoneme_group_size': 2},
+        #{'text': text, 'mode': 'word', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'delete', 'phoneme_group_size': 3},
 
-        {'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 1},
-        {'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 2},
-        {'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 3},
+        # {'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 1},
+        #{'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 2},
+        #{'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 3},
 
-        {'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 1},
-        {'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 2},
-        {'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 3},
+        # {'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 1},
+        #{'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 2},
+        #{'text': text, 'mode': 'word', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 3},
 
 
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'append', 'phoneme_group_size': 1},
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'append', 'phoneme_group_size': 2},
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'append', 'phoneme_group_size': 3},
+        # {'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'append', 'phoneme_group_size': 1},
+        # {'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'append', 'phoneme_group_size': 2},
+        #{'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'append', 'phoneme_group_size': 3},
 
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'delete', 'phoneme_group_size': 1},
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'delete', 'phoneme_group_size': 2},
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'delete', 'phoneme_group_size': 3},
+        # {'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'delete', 'phoneme_group_size': 1},
+        #{'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'delete', 'phoneme_group_size': 2},
+        #{'text': text, 'mode': 'sentence', 'distribution_criteria': 'pvalue', 'synthesis_mode': 'delete', 'phoneme_group_size': 3},
 
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 1},
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 2},
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 3},
+        # {'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 1},
+        #{'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 2},
+        #{'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'append', 'phoneme_group_size': 3},
 
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 1},
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 2},
-        {'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 3},
+        # {'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 1},
+        #{'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 2},
+        #{'text': text, 'mode': 'sentence', 'distribution_criteria': 'statistic', 'synthesis_mode': 'delete', 'phoneme_group_size': 3},
     ]
 
     for params in PARAMETERS:
