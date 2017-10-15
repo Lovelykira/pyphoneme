@@ -320,18 +320,20 @@ class TextSynthesis:
         :return: string, result text
         """
         text_list = self._text_to_list_by_mode()
-        chunks = self._get_chunks_by_mode()
+        unique_chunks = list(self._get_chunks_by_mode())
         iterations_number = 0
         while_start = datetime.datetime.now()
         while self.text_is_relevant(' '.join(text_list)):
             iterations_number += 1
             loop_start = datetime.datetime.now()
-            text_distribution = self._get_distribution(' '.join(text_list))
-            worst_chunk = self.get_worst_chunk(chunks, text_distribution)
+            # text_distribution = self._get_distribution(' '.join(text_list))
+            worst_chunk = self.get_worst_chunk(unique_chunks, ' '.join(text_list))
+            # worst_chunk = self.get_worst_chunk(text_list, text_distribution)
             if not worst_chunk:
                 break
-            chunks = [value for value in chunks if value != worst_chunk]
-            text_list = [value for value in text_list if value != worst_chunk]
+            text_list.remove(worst_chunk)
+            if worst_chunk not in text_list:
+                unique_chunks.remove(worst_chunk)
 
             print('iteration', iterations_number)
             print('time', datetime.datetime.now() - loop_start)
@@ -340,11 +342,13 @@ class TextSynthesis:
         print('p_value_level', self.p_value_level)
         print('distribution_criteria', self.distribution_criteria)
         print('mode', self.mode)
-        print('result', ' '.join(chunks))
+        # print('result', ' '.join(unique_chunks))
+        print('result', ' '.join(text_list))
 
         self.run_time = datetime.datetime.now() - while_start
         self.iterations_number = iterations_number
-        self.result_text = ' '.join(chunks)
+        # self.result_text = ' '.join(unique_chunks)
+        self.result_text = ' '.join(text_list)
         self.text_distribution = self._get_distribution(self.result_text)
         return self.result_text
 
@@ -358,20 +362,22 @@ class TextSynthesis:
         """
         result_chunks = ''
         text_list = self._text_to_list_by_mode()
-        chunks = self._get_chunks_by_mode()
+        unique_chunks = list(self._get_chunks_by_mode())
         iterations_number = 0
         while_start = datetime.datetime.now()
 
         while not self.text_is_relevant(result_chunks):
             iterations_number += 1
             loop_start = datetime.datetime.now()
-            text_distribution = self._get_distribution(' '.join(text_list))
-            best_chunk = self.get_best_chunk(chunks, text_distribution)
+            # text_distribution = self._get_distribution(' '.join(text_list))
+            best_chunk = self.get_best_chunk(unique_chunks, result_chunks)
+            # best_chunk = self.get_best_chunk(text_list, text_distribution)
             if not best_chunk:
                 break
             result_chunks += ' ' + best_chunk + '.'
-            chunks = [value for value in chunks if value != best_chunk]
-            text_list = [value for value in text_list if value != best_chunk]
+            text_list.remove(best_chunk)
+            if best_chunk not in text_list:
+                unique_chunks.remove(best_chunk)
 
             print('iteration', iterations_number)
             print('time', datetime.datetime.now() - loop_start)
@@ -388,7 +394,7 @@ class TextSynthesis:
         self.text_distribution = self._get_distribution(self.result_text)
         return self.result_text
 
-    def get_best_chunk(self, chunks, text_distribution):
+    def get_best_chunk(self, chunks, text):
         """
         Gets most relevant chunk from chunks. Looks at self.distribution_criteria and picks the chunk that is fits best.
         :param chunks: list of chunks
@@ -403,8 +409,8 @@ class TextSynthesis:
         for i, chunk in enumerate(chunks):
             if not chunk:
                 continue
-            chunk_distribution =  self._get_distribution(chunk)
-            values_initial, values_chunk = self._get_values(text_distribution, chunk_distribution)
+            chunk_distribution =  self._get_distribution(text + ' ' + chunk)
+            values_initial, values_chunk = self._get_values(self.initial_distribution, chunk_distribution)
             ks_test = stats.ks_2samp(values_initial, values_chunk)
             chunks_ks_test[i] = ks_test
 
@@ -420,7 +426,7 @@ class TextSynthesis:
         if self.distribution_criteria == self.STATISTIC:
             return smallest_statistic_chunk
 
-    def get_worst_chunk(self, chunks, text_distribution):
+    def get_worst_chunk(self, chunks, text):
         """
         Gets least relevant chunk from chunks. Looks at self.distribution_criteria and picks the chunk that is less
         relevant.
@@ -436,8 +442,8 @@ class TextSynthesis:
         for i, chunk in enumerate(chunks):
             if not chunk:
                 continue
-            chunk_distribution =  self._get_distribution(chunk)
-            values_initial, values_chunk = self._get_values(text_distribution, chunk_distribution)
+            chunk_distribution =  self._get_distribution(text.replace(chunk, 1))
+            values_initial, values_chunk = self._get_values(self.initial_distribution, chunk_distribution)
             ks_test = stats.ks_2samp(values_initial, values_chunk)
             chunks_ks_test[i] = ks_test
 
@@ -455,7 +461,7 @@ class TextSynthesis:
 
     def _get_chunks_by_mode(self):
         if self.mode == self.SENTENCE:
-            return self.text.split('.')
+            return set(self.text.split('.'))
         if self.mode == self.WORD:
             return self.text_analyzer.unique_phoneme_words.keys()
 
