@@ -4,11 +4,29 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from scipy import stats
+from subprocess import check_output
 
 
-class PhonemeParser:
+def remove_dots(text):
+    return text.replace('.', ' ').strip()
+
+
+def remove_empty_values(words):
+    return list(filter(lambda a: a != '', words))
+
+
+def get_normalized_word(word):
     """
-    Class that gets transcription for given text.
+    Gets word and removes all non letter symbols from it
+    :param word: string
+    :return: string, containing only letters
+    """
+    return re.sub('[^a-zA-Z]', '', word)
+
+
+class HttpPhonemeParser:
+    """
+    Class that gets transcription for given text from http.
     """
     AVAILABLE_LANGUAGES = ('english', 'danish', 'german')
     DEFAULT_LANGUAGE = 'english'
@@ -37,21 +55,12 @@ class PhonemeParser:
         return res.text
 
 
-def remove_dots(text):
-    return text.replace('.', ' ').strip()
-
-
-def remove_empty_values(words):
-    return list(filter(lambda a: a != '', words))
-
-
-def get_normalized_word(word):
+class EspeakPhonemeParser:
     """
-    Gets word and removes all non letter symbols from it
-    :param word: string
-    :return: string, containing only letters
+    Class that gets transcription for given text using espeak subprocess.
     """
-    return re.sub('[^a-zA-Z]', '', word)
+    def text_to_phoneme(self, text):
+        return check_output(["espeak", "-q", "--ipa", '-v', 'en-us', text]).strip().decode('utf-8')
 
 
 class SavedPhonemeWords:
@@ -107,9 +116,10 @@ class UniquePhonemeWords:
                 continue
             if word not in saved_phoneme_words.keys():
                 try:
-                    phoneme = PhonemeParser().text_to_phoneme(word)
-                except:
+                    phoneme = EspeakPhonemeParser().text_to_phoneme(word)
+                except Exception:
                     SavedPhonemeWords.update(saved_phoneme_words)
+                    raise
                 saved_phoneme_words[word] = phoneme
                 print('Getting phoneme for ' + word + ' - ' + phoneme)
             current_text_phoneme_words[word] = saved_phoneme_words[word]
@@ -125,8 +135,14 @@ class TextAnalyzer:
     def __init__(self, text):
         self.text = text
         self.words_info = {}
-        self.phonemes_count = {}
-        self.all_phonemes = 0
+        self.phonemes_count = {
+            'single': {},
+            'pairs': {},
+            'triplets': {}
+        }
+        self.single_phonemes_count = 0
+        self.pair_phonemes_count = 0
+        self.triplet_phonemes_count = 0
 
         self.unique_phoneme_words = UniquePhonemeWords(self.text).get()
         print('unique phonemes found')
@@ -156,27 +172,60 @@ class TextAnalyzer:
 
     def _analyze_phonemes(self):
         """
-        Loops through all phonemes and saves how much of each phonemes there are and sum of all phonemes in text.
+        Loops through all phonemes and saves how much of each phonemes, phoneme pairs and phoneme triplets there are
+        and sum of all phonemes in text.
         """
         for word_text, word_info in self.words_info.items():
-            for phoneme, phoneme_count in word_info['word'].get_phonemes_count().items():
-                self.all_phonemes += phoneme_count * word_info['count']
-                self.phonemes_count[phoneme] = self.phonemes_count.get(phoneme, 0) + phoneme_count * word_info['count']
+            for phoneme, phoneme_count in word_info['word'].phonemes_dict['single'].items():
+                occurrences = phoneme_count * word_info['count']
+                self.single_phonemes_count += occurrences
+                self.phonemes_count['single'][phoneme] = self.phonemes_count['single'].get(phoneme, 0) + occurrences
+
+            for pair, pair_count in word_info['word'].phonemes_dict['pairs'].items():
+                occurrences = pair_count * word_info['count']
+                self.pair_phonemes_count += occurrences
+                self.phonemes_count['pairs'][pair] = self.phonemes_count['pairs'].get(pair, 0) + occurrences
+
+            for triplet, triplet_count in word_info['word'].phonemes_dict['triplets'].items():
+                occurrences = triplet_count * word_info['count']
+                self.triplet_phonemes_count += occurrences
+                self.phonemes_count['triplets'][triplet] = self.phonemes_count['triplets'].get(triplet, 0) + occurrences
 
     def get_initial_percentage(self):
         """
         Calculates how much percentage does each phoneme take in initial text.
-        :return: dict {phoneme: percentage}
+        :return: dict {
+            'single': {
+                'a': percentage
+            },
+            'pairs': {
+                'ab': percentage
+            },
+            'triplets': {
+                'abc': percentage
+            }
+        }
         """
-        percentage = {}
-        for phoneme, count in self.phonemes_count.items():
-            percentage[phoneme] = count / self.all_phonemes
+        percentage = {
+            'single': {},
+            'pairs': {},
+            'triplets': {}
+        }
+        for phoneme, count in self.phonemes_count['single'].items():
+            percentage['single'][phoneme] = count / self.single_phonemes_count
+
+        for pair, pair_count in self.phonemes_count['pairs'].items():
+            percentage['pairs'][pair] = pair_count / self.pair_phonemes_count
+
+        for triplet, triplet_count in self.phonemes_count['triplets'].items():
+            percentage['triplets'][triplet] = triplet_count / self.triplet_phonemes_count
         return percentage
 
-    def get_percentage(self, chunk):
+    def get_percentage(self, chunk, phonemes_num):
         """
         Calculates how much percentage does each phoneme take in given chunk of initial text.
         :param chunk: string, part of initial text
+        :param phonemes_num: string, number of phonemes to get percentage - 'single', 'pairs', 'triplets'
         :return: dict {phoneme: percentage}
         """
         all_phonemes = 0
@@ -185,7 +234,7 @@ class TextAnalyzer:
             word = get_normalized_word(word)
             if not word:
                 continue
-            phonemes_count = self.words_info[word]['word'].get_phonemes_count()
+            phonemes_count = self.words_info[word]['word'].phonemes_dict[phonemes_num]
             for phoneme, count in phonemes_count.items():
                 phonemes[phoneme] = phonemes.get(phoneme, 0) + count
                 all_phonemes += count
@@ -210,14 +259,18 @@ class TextSynthesis:
     DEFAULT_MODE = SENTENCE
     SYNTHESIS_APPEND = 'append'
     SYNTHESIS_DELETE = 'delete'
+    MAX_PHONEME_GROUP_SIZE = 3
 
-    def __init__(self, text, mode=None, p_value_level=0.7, distribution_criteria=None, synthesis_mode=None):
+    def __init__(
+            self, text, mode=None, p_value_level=0.7, distribution_criteria=None, synthesis_mode=None, phoneme_group_size=1
+    ):
         self.text = self._normalize_text(text)
         self.p_value_level = p_value_level
         self.mode = mode if mode in self.AVAILABLE_MODES else self.DEFAULT_MODE
+        self.phoneme_group_size = phoneme_group_size if phoneme_group_size <= self.MAX_PHONEME_GROUP_SIZE else 1
         self.distribution_criteria = distribution_criteria if distribution_criteria in self.AVAILABLE_CRETERIAS else self.DEFAULT_CRETERIA
         self.text_analyzer = TextAnalyzer(self.text)
-        self.initial_distribution = self.text_analyzer.get_initial_percentage()
+        self.initial_distribution = self._get_distribution(self.text)
         self.text_distribution = None
         self.result_text = None
         self.run_time = None
@@ -240,6 +293,7 @@ class TextSynthesis:
             'iterations_number': self.iterations_number,
             'synthesis_mode': self.synthesis_mode,
             'test_p_value_level': self.test_p_value_level,
+            'phoneme_group_size': self.phoneme_group_size,
             'answer': self.result_text
         }
 
@@ -248,6 +302,14 @@ class TextSynthesis:
             return self.synthesize_by_appending_chunks()
         if self.synthesis_mode == self.SYNTHESIS_DELETE:
             return self.synthesize_by_deleting_chunks()
+
+    def _get_distribution(self, chunk):
+        percentage = self.text_analyzer.get_percentage(chunk, 'single')
+        if self.phoneme_group_size >= 2:
+            percentage.update(self.text_analyzer.get_percentage(chunk, 'pairs'))
+        if self.phoneme_group_size == 3:
+            percentage.update(self.text_analyzer.get_percentage(chunk, 'triplets'))
+        return percentage
 
     def synthesize_by_deleting_chunks(self):
         """
@@ -258,17 +320,21 @@ class TextSynthesis:
         :return: string, result text
         """
         text_list = self._text_to_list_by_mode()
-        chunks = self._get_chunks_by_mode()
+        unique_chunks = list(self._get_chunks_by_mode())
         iterations_number = 0
         while_start = datetime.datetime.now()
         while self.text_is_relevant(' '.join(text_list)):
-            loop_start = datetime.datetime.now()
-            text_distribution = self.text_analyzer.get_percentage(' '.join(text_list))
-            worst_chunk = self.get_worst_chunk(chunks, text_distribution)
-            chunks = [value for value in chunks if value != worst_chunk]
-            text_list = [value for value in text_list if value != worst_chunk]
-
             iterations_number += 1
+            loop_start = datetime.datetime.now()
+            # text_distribution = self._get_distribution(' '.join(text_list))
+            worst_chunk = self.get_worst_chunk(unique_chunks, ' '.join(text_list))
+            # worst_chunk = self.get_worst_chunk(text_list, text_distribution)
+            if not worst_chunk:
+                break
+            text_list.remove(worst_chunk)
+            if worst_chunk not in text_list:
+                unique_chunks.remove(worst_chunk)
+
             print('iteration', iterations_number)
             print('time', datetime.datetime.now() - loop_start)
             print('removing', worst_chunk)
@@ -276,12 +342,14 @@ class TextSynthesis:
         print('p_value_level', self.p_value_level)
         print('distribution_criteria', self.distribution_criteria)
         print('mode', self.mode)
-        print('result', ' '.join(chunks))
+        # print('result', ' '.join(unique_chunks))
+        print('result', ' '.join(text_list))
 
         self.run_time = datetime.datetime.now() - while_start
         self.iterations_number = iterations_number
-        self.result_text = ' '.join(chunks)
-        self.text_distribution = self.text_analyzer.get_percentage(self.result_text)
+        # self.result_text = ' '.join(unique_chunks)
+        self.result_text = ' '.join(text_list)
+        self.text_distribution = self._get_distribution(self.result_text)
         return self.result_text
 
     def synthesize_by_appending_chunks(self):
@@ -294,19 +362,23 @@ class TextSynthesis:
         """
         result_chunks = ''
         text_list = self._text_to_list_by_mode()
-        chunks = self._get_chunks_by_mode()
+        unique_chunks = list(self._get_chunks_by_mode())
         iterations_number = 0
         while_start = datetime.datetime.now()
 
         while not self.text_is_relevant(result_chunks):
-            loop_start = datetime.datetime.now()
-            text_distribution = self.text_analyzer.get_percentage(' '.join(text_list))
-            best_chunk = self.get_best_chunk(chunks, text_distribution)
-            result_chunks += ' ' + best_chunk + '.'
-            chunks = [value for value in chunks if value != best_chunk]
-            text_list = [value for value in text_list if value != best_chunk]
-
             iterations_number += 1
+            loop_start = datetime.datetime.now()
+            # text_distribution = self._get_distribution(' '.join(text_list))
+            best_chunk = self.get_best_chunk(unique_chunks, result_chunks)
+            # best_chunk = self.get_best_chunk(text_list, text_distribution)
+            if not best_chunk:
+                break
+            result_chunks += ' ' + best_chunk + '.'
+            text_list.remove(best_chunk)
+            if best_chunk not in text_list:
+                unique_chunks.remove(best_chunk)
+
             print('iteration', iterations_number)
             print('time', datetime.datetime.now() - loop_start)
             print('result', best_chunk)
@@ -319,10 +391,10 @@ class TextSynthesis:
         self.run_time = datetime.datetime.now() - while_start
         self.iterations_number = iterations_number
         self.result_text = result_chunks
-        self.text_distribution = self.text_analyzer.get_percentage(self.result_text)
+        self.text_distribution = self._get_distribution(self.result_text)
         return self.result_text
 
-    def get_best_chunk(self, chunks, text_distribution):
+    def get_best_chunk(self, chunks, text):
         """
         Gets most relevant chunk from chunks. Looks at self.distribution_criteria and picks the chunk that is fits best.
         :param chunks: list of chunks
@@ -337,8 +409,9 @@ class TextSynthesis:
         for i, chunk in enumerate(chunks):
             if not chunk:
                 continue
-            chunk_distribution = self.text_analyzer.get_percentage(chunk)
-            ks_test = stats.ks_2samp(list(chunk_distribution.values()), list(text_distribution.values()))
+            chunk_distribution =  self._get_distribution(text + ' ' + chunk)
+            values_initial, values_chunk = self._get_values(self.initial_distribution, chunk_distribution)
+            ks_test = stats.ks_2samp(values_initial, values_chunk)
             chunks_ks_test[i] = ks_test
 
             if ks_test.statistic < smallest_statistic:
@@ -353,7 +426,7 @@ class TextSynthesis:
         if self.distribution_criteria == self.STATISTIC:
             return smallest_statistic_chunk
 
-    def get_worst_chunk(self, chunks, text_distribution):
+    def get_worst_chunk(self, chunks, text):
         """
         Gets least relevant chunk from chunks. Looks at self.distribution_criteria and picks the chunk that is less
         relevant.
@@ -369,8 +442,9 @@ class TextSynthesis:
         for i, chunk in enumerate(chunks):
             if not chunk:
                 continue
-            chunk_distribution = self.text_analyzer.get_percentage(chunk)
-            ks_test = stats.ks_2samp(list(chunk_distribution.values()), list(text_distribution.values()))
+            chunk_distribution =  self._get_distribution(text.replace(chunk, 1))
+            values_initial, values_chunk = self._get_values(self.initial_distribution, chunk_distribution)
+            ks_test = stats.ks_2samp(values_initial, values_chunk)
             chunks_ks_test[i] = ks_test
 
             if ks_test.statistic > highest_statistic:
@@ -387,7 +461,7 @@ class TextSynthesis:
 
     def _get_chunks_by_mode(self):
         if self.mode == self.SENTENCE:
-            return self.text.split('.')
+            return set(self.text.split('.'))
         if self.mode == self.WORD:
             return self.text_analyzer.unique_phoneme_words.keys()
 
@@ -397,6 +471,16 @@ class TextSynthesis:
         if self.mode == self.WORD:
             return [get_normalized_word(word) for word in self.text.split(' ')]
 
+    def _get_values(self, initial, chunk):
+        values_initial = []
+        values_chunk = []
+
+        for key in initial.keys():
+            values_initial.append(initial[key])
+            values_chunk.append(chunk.get(key, 0))
+
+        return values_initial, values_chunk
+
     def text_is_relevant(self, text):
         """
         Compares distributions of given text and initial. Returns whether the text has similar distribution or not.
@@ -405,12 +489,15 @@ class TextSynthesis:
         """
         if not text:
             return False
-        synthesis_text_distribution = self.text_analyzer.get_percentage(text)
-        ks_test = stats.ks_2samp(list(synthesis_text_distribution.values()), list(self.initial_distribution.values()))
+        synthesis_text_distribution =  self._get_distribution(text)
+        values_initial, values_chunk = self._get_values(self.initial_distribution, synthesis_text_distribution)
+        ks_test = stats.ks_2samp(values_initial, values_chunk)
         print('compare to initial', ks_test.pvalue)
         print('-------------------')
-        self.test_p_value_level = ks_test.pvalue
-        return ks_test.pvalue > self.p_value_level
+        is_relevant = ks_test.pvalue >= self.p_value_level
+        if is_relevant:
+            self.test_p_value_level = ks_test.pvalue
+        return is_relevant
 
     def _normalize_text(self, text):
         text = text.replace('?', '.')
@@ -429,9 +516,14 @@ class Word:
     """
     Class to help handle the words transcription.
     """
+
+    PROLONGATION_PHONEME = 'ː'
+    SKIP_PHONEMES = ['ˈ', 'ˌ']
+
     def __init__(self, text, transcription):
         self.text = text
-        self.transcription = transcription
+        self.transcription = [phoneme for phoneme in transcription if phoneme not in self.SKIP_PHONEMES]
+        self.phonemes_dict = self.parse_phonemes_dict()
 
     def get_text(self):
         return self.text
@@ -441,16 +533,89 @@ class Word:
 
     def get_phonemes_count(self):
         info = {}
-        for phoneme in self.transcription:
+        for i, phoneme in enumerate(self.transcription):
+            if phoneme in self.SKIP_PHONEMES:
+                continue
+
+            if self._is_next_phoneme_prolongation(i):
+                phoneme += self.PROLONGATION_PHONEME
             info[phoneme] = info.get(phoneme, 0) + 1
+
         return info
 
-    def get_unique_phonemes(self):
-        unique_phonemes = []
-        for phoneme in self.transcription:
-            if phoneme not in unique_phonemes:
-                unique_phonemes.append(phoneme)
-        return unique_phonemes
+    def parse_phonemes_dict(self):
+        """
+        Returns dict with number of each phoneme, phonemes pair, phoneme triplet in given word. Notice that ':' is part
+        of phoneme.
+        ' and ˌ are skipped.
 
-    def get_percentage(self):
-        pass
+        examples:
+        "nurse": {'pairs': {'nɜː': 1, 'ɜːs': 1}, 'triplets': {'nɜːs': 1}, 'single': {'s': 1, 'ɜː': 1, 'n': 1}}
+        "test": {
+            'pairs': {'st': 1, 'ɛs': 1, 'tɛ': 1}, 'triplets': {'tɛs': 1, 'ɛst': 1}, 'single': {'s': 1, 't': 2, 'ɛ': 1}
+        }
+        :return: dict
+        """
+        phonemes_dict = {
+            'single': dict(),
+            'pairs': dict(),
+            'triplets': dict()
+        }
+
+        for i, phoneme in enumerate(self.transcription):
+            if phoneme == self.PROLONGATION_PHONEME:
+                continue
+
+            if self._is_next_phoneme_prolongation(i):
+                phoneme += self.PROLONGATION_PHONEME
+                i = i + 1
+
+            phonemes_dict['single'][phoneme] = phonemes_dict['single'].get(phoneme, 0) + 1
+
+            if self._next_phoneme_exists(i):
+                pair = phoneme + self._next_phoneme(i)
+                phonemes_dict['pairs'][pair] = phonemes_dict['pairs'].get(pair, 0) + 1
+
+                if self._next_phoneme_exists(i+1):
+                    triplet = pair + self._next_phoneme(i+1)
+                    phonemes_dict['triplets'][triplet] = phonemes_dict['triplets'].get(triplet, 0) + 1
+        return phonemes_dict
+
+    def _next_phoneme(self, current_index):
+        n = 2 if self._is_next_phoneme_prolongation(current_index) else 1
+        phoneme = self.transcription[current_index + n]
+        return phoneme + self.PROLONGATION_PHONEME if self._is_next_phoneme_prolongation(current_index + n) else phoneme
+
+    def _next_phoneme_exists(self, current_index):
+        if current_index == len(self.transcription) - 2 and self.transcription[-1] == self.PROLONGATION_PHONEME:
+            return False
+        return current_index < len(self.transcription) - 1
+
+    def _is_next_phoneme_prolongation(self, current_index):
+        return self._next_phoneme_exists(current_index) and self.transcription[current_index + 1] == self.PROLONGATION_PHONEME
+
+
+def compare_two_texts(text1, text2):
+    percentage1 = TextAnalyzer(text1).get_initial_percentage()
+    percentage2 = TextAnalyzer(text2).get_initial_percentage()
+
+    ks_test_single = stats.ks_2samp(list(percentage1['single'].values()), list(percentage2['single'].values()))
+    ks_test_pairs = stats.ks_2samp(list(percentage1['pairs'].values()), list(percentage2['pairs'].values()))
+    ks_test_triplets = stats.ks_2samp(list(percentage1['triplets'].values()), list(percentage2['triplets'].values()))
+
+    print('percentage1 single', percentage1['single'])
+    print('percentage2 single', percentage2['single'])
+
+    print('percentage1 pairs', percentage1['pairs'])
+    print('percentage2 pairs', percentage2['pairs'])
+
+    print('percentage1 triplets', percentage1['triplets'])
+    print('percentage2 triplets', percentage2['triplets'])
+
+    print('single pvalue', ks_test_single.pvalue)
+    print('pairs pvalue', ks_test_pairs.pvalue)
+    print('triplets pvalue', ks_test_triplets.pvalue)
+
+    print('single statistic', ks_test_single.statistic)
+    print('pairs statistic', ks_test_pairs.statistic)
+    print('triplets statistic', ks_test_triplets.statistic)
