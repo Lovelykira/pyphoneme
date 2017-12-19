@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 import xlsxwriter
+import os
 
 
 PHONEMES_NUM = {
@@ -18,6 +19,13 @@ class JSONExport:
         self.file_name = file_name or 'reports/synthesis_by_{}_{}_by_{}_{}_{}.json'.format(data['mode'], data['synthesis_mode'], data['criteria'], phonemes_num, datetime.now())
 
     def save(self):
+        dir_name = os.path.dirname(self.file_name)
+        if not os.path.isdir(dir_name):
+            try:
+                os.makedirs(dir_name)
+            except OSError:
+                pass  # who cares
+
         file = open(self.file_name, "w")
         file.write(json.dumps(self.data, indent=2, sort_keys=True))
         file.close()
@@ -30,6 +38,12 @@ class SpreadsheetExport:
         self.file_name = file_name or 'reports/synthesis_by_{}_{}_by_{}_{}.xlsx'.format(data['mode'], data['synthesis_mode'], data['criteria'], phonemes_num, datetime.now())
 
     def save(self):
+        dir_name = os.path.dirname(self.file_name)
+        if not os.path.isdir(dir_name):
+            try:
+                os.makedirs(dir_name)
+            except OSError:
+                pass  # who cares
 
         workbook = xlsxwriter.Workbook(self.file_name)
         worksheet = workbook.add_worksheet()
